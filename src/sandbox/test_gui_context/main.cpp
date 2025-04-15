@@ -114,7 +114,7 @@ struct App : public om::App {
   std::string lever1_animal{ "Dodson" };
   std::string lever2_animal{ "Kanga" };
   
-  std::string experiment_date{ "20250409" };
+  std::string experiment_date{ "20250415" };
 
   //std::string trialrecords_name = experiment_date + "_" + lever1_animal + "_" + lever2_animal + "_TrialRecord_1.json" ;
   //std::string bhvdata_name = experiment_date + "_" + lever1_animal + "_" + lever2_animal + "_bhv_data_1.json" ;
@@ -274,17 +274,34 @@ json get_supp_data(const std::vector<double>& manual_reward_ts) {
 
 json get_ni_json_data(const om::led::LEDSync* sync, om::TimePoint session_t0) {
   const auto sync_ts = om::ni::read_sync_time_points();
-  const auto trigger_ts = om::ni::read_trigger_time_points();
+  const auto all_trigger_ts = om::ni::read_trigger_time_points(); // vector<vector<TriggerTimePoint>>
   const auto ni_t0 = om::ni::read_time0();
+
+  // Customize names for each input channel
+  std::vector<std::string> trigger_channel_names = {
+    "Dev1/ai0",  // index 0
+    "Dev1/ai9"   // index 1
+  };
 
   json json_sync_ts;
   for (auto& t : sync_ts) {
     json_sync_ts.push_back(to_json(t));
   }
 
-  json json_trigger_ts;
-  for (auto& t : trigger_ts) {
-    json_trigger_ts.push_back(to_json(t));
+  json json_trigger_ts = json::array();
+  for (size_t i = 0; i < all_trigger_ts.size(); ++i) {
+    const auto& channel_trigger_ts = all_trigger_ts[i];
+
+    json channel_json;
+    channel_json["channel_name"] = (i < trigger_channel_names.size()) ? trigger_channel_names[i] : ("channel_" + std::to_string(i));
+
+    json timepoints = json::array();
+    for (const auto& t : channel_trigger_ts) {
+      timepoints.push_back(to_json(t));
+    }
+
+    channel_json["timepoints"] = timepoints;
+    json_trigger_ts.push_back(channel_json);
   }
 
   double session_offset{};
@@ -1210,22 +1227,29 @@ void ensure_some_trial_records_are_stored(App& app) {
 
 bool initialize_ni() {
   om::ni::InitParams init_params{};
-  om::ni::ChannelDescriptor ai0_input_desc{};
+
+  // Create and configure the input descriptors directly in the array
+  om::ni::ChannelDescriptor ai_input_descs[2];
+  ai_input_descs[0].name = "Dev1/ai0";
+  ai_input_descs[0].max_value = 10.0;
+  ai_input_descs[0].min_value = -10.0;
+
+  ai_input_descs[1].name = "Dev1/ai9";
+  ai_input_descs[1].max_value = 10.0;
+  ai_input_descs[1].min_value = -10.0;
+
+  // Output descriptor
   om::ni::ChannelDescriptor ai_output_desc{};
-
-  ai0_input_desc.name = "Dev1/ai0";
-  ai0_input_desc.max_value = 10.0;
-  ai0_input_desc.min_value = -10.0;
-
   ai_output_desc.name = "Dev1/ao0";
   ai_output_desc.min_value = -10.0;
   ai_output_desc.max_value = 10.0;
 
+  // Fill init params
   init_params.sample_rate = 1e4;
   init_params.sample_clock_channel_name = "/Dev1/PFI0";
   init_params.num_samples_per_channel = Config::ni_num_samples_per_channel;
-  init_params.num_analog_input_channels = 1;
-  init_params.analog_input_channels = &ai0_input_desc;
+  init_params.num_analog_input_channels = 2;
+  init_params.analog_input_channels = ai_input_descs;  // Now a valid pointer
   init_params.num_analog_output_channels = 1;
   init_params.analog_output_channels = &ai_output_desc;
 
