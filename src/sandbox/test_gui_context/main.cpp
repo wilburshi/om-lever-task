@@ -129,7 +129,7 @@ struct App : public om::App {
 
   // lever force setting condition
   bool allow_auto_lever_force_set{true}; // true, if use force as below; false, if manually select force level on the GUI. - WS
-  float normalforce{ 50.0f }; // 130
+  float normalforce{ 80.0f }; // 130
   float releaseforce{ 350.0f }; // 350
 
   bool allow_automated_juice_delivery{false};
